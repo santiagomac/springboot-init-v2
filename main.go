@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	"strings"
-
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -25,6 +23,8 @@ type model struct {
 	doneCh       chan struct{}
 }
 
+type tickMsg string
+
 func initialModel() model {
 	ti := textinput.New()
 	ti.Placeholder = "Your project name"
@@ -32,7 +32,7 @@ func initialModel() model {
 	ti.CharLimit = 156
 	ti.Width = 20
 
-	progressModel := progress.New()
+	progressModel := progress.New(progress.WithDefaultGradient())
 	progressModel.SetPercent(0)
 
 	return model{
@@ -57,10 +57,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "q":
 			return m, tea.Quit
 		case "enter":
+			if m.step == 0 {
+				m.projectName = m.textInput.Value()
+			}
+			m.step++
+			if m.step == 2 {
+				project := &utils.SpringProject{
+					GroupID:      m.groupID,
+					ArtifactID:   m.artifactID,
+					ProjectName:  m.projectName,
+					Dependencies: m.dependencies,
+				}
+				return m, firstMethod(project)
+			}
 			if m.step == 3 {
 				return m, tea.Quit
 			}
-			m.step++
 		case "up":
 			if m.cursor > 0 {
 				m.cursor--
@@ -78,18 +90,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.dependencies = append(m.dependencies, m.options[m.cursor])
 			}
 		}
-	case string:
-		if msg == "project created" {
-			return m, tea.Quit
+	case tickMsg:
+		if string(msg) == "init" {
+			cmd := m.progress.IncrPercent(0.10)
+			return m, cmd
 		}
-		cmd := m.progress.IncrPercent(0.25)
-		project := &utils.SpringProject{
-			GroupID:      m.groupID,
-			ArtifactID:   m.artifactID,
-			ProjectName:  m.projectName,
-			Dependencies: m.dependencies,
-		}
-		return m, tea.Batch(cmd, utils.CreateProject(project, &m.progress))
+
 	case progress.FrameMsg:
 		progressModel, cmd := m.progress.Update(msg)
 		m.progress = progressModel.(progress.Model)
@@ -126,13 +132,33 @@ func (m model) View() string {
 			s += fmt.Sprintf("%s [%s] %s\n", cursor, checked, choice)
 		}
 	case 2:
-		pad := strings.Repeat(" ", 2)
-		s += "\n" + pad + m.progress.View() + "\n\n"
-		fmt.Println("CASE 2")
-		m.progress.View()
+		s += "Creating project...\n\n"
+		s += fmt.Sprintf("%s\n", m.progress.View())
+		s += fmt.Sprintf("Progress: %.0f%%\n", m.progress.Percent()*100)
 	}
 	s += "\n Press 'q' to exit"
 	return s
+}
+
+func progressCmd(t string) tea.Cmd {
+	return func() tea.Msg {
+		return tickMsg(t)
+	}
+}
+
+func firstMethod(project *utils.SpringProject) tea.Cmd {
+	result := 2 + 2
+	fmt.Printf("Result: %d", result)
+	data, projectName, err := utils.CreateProject(project)
+	if err != nil {
+		tea.Quit()
+	}
+
+	err = utils.Unzip(data, projectName)
+	if err != nil {
+		tea.Quit()
+	}
+	return progressCmd("init")
 }
 
 func main() {

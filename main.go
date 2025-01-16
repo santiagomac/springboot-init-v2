@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -19,11 +20,10 @@ type model struct {
 	cursor       int
 	selected     map[int]struct{}
 	progress     progress.Model
-	progressCh   chan int
-	doneCh       chan struct{}
+	creationStep int
 }
 
-type tickMsg string
+type tickMsg int
 
 func initialModel() model {
 	ti := textinput.New()
@@ -36,13 +36,12 @@ func initialModel() model {
 	progressModel.SetPercent(0)
 
 	return model{
-		step:       0,
-		textInput:  ti,
-		options:    []string{"web", "webflux", "jpa", "security", "thymeleaf", "actuator"},
-		selected:   map[int]struct{}{},
-		progress:   progressModel,
-		progressCh: make(chan int),
-		doneCh:     make(chan struct{}),
+		step:         0,
+		textInput:    ti,
+		options:      []string{"web", "webflux", "jpa", "security", "thymeleaf", "actuator"},
+		selected:     map[int]struct{}{},
+		progress:     progressModel,
+		creationStep: 1,
 	}
 }
 
@@ -51,6 +50,10 @@ func (m model) Init() tea.Cmd {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var data *[]byte
+	var projectName *string
+	var cmdCreation tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -61,14 +64,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.projectName = m.textInput.Value()
 			}
 			m.step++
-			if m.step == 2 {
+			if m.step == 2 && m.creationStep == 1 {
 				project := &utils.SpringProject{
 					GroupID:      m.groupID,
 					ArtifactID:   m.artifactID,
 					ProjectName:  m.projectName,
 					Dependencies: m.dependencies,
 				}
-				return m, firstMethod(project)
+				data, projectName, cmdCreation = downloadProject(&m, project)
+				m.creationStep++
+				return m, cmdCreation
 			}
 			if m.step == 3 {
 				return m, tea.Quit
@@ -91,8 +96,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case tickMsg:
-		if string(msg) == "init" {
-			cmd := m.progress.IncrPercent(0.10)
+		if int(msg) == 1 {
+			cmd := m.progress.IncrPercent(0.5)
+			return m, tea.Batch(cmd)
+		}
+		if int(msg) == 2 {
+			cmd := m.progress.IncrPercent(0.5)
 			return m, cmd
 		}
 
@@ -100,6 +109,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		progressModel, cmd := m.progress.Update(msg)
 		m.progress = progressModel.(progress.Model)
 		return m, cmd
+	default:
+		if m.step == 2 && m.creationStep == 2 {
+			unzip(data, projectName)
+			return m, progressCmd(2)
+		}
 	}
 
 	var cmd tea.Cmd
@@ -140,25 +154,28 @@ func (m model) View() string {
 	return s
 }
 
-func progressCmd(t string) tea.Cmd {
+func progressCmd(creationStep int) tea.Cmd {
 	return func() tea.Msg {
-		return tickMsg(t)
+		return tickMsg(creationStep)
 	}
 }
 
-func firstMethod(project *utils.SpringProject) tea.Cmd {
-	result := 2 + 2
-	fmt.Printf("Result: %d", result)
+func downloadProject(m *model, project *utils.SpringProject) (dataReturn *[]byte, projectNameReturn *string, cmd tea.Cmd) {
 	data, projectName, err := utils.CreateProject(project)
 	if err != nil {
-		tea.Quit()
+		return nil, nil, tea.Quit
 	}
 
-	err = utils.Unzip(data, projectName)
+	return &data, &projectName, progressCmd(m.creationStep)
+}
+
+func unzip(data *[]byte, dest *string) (tea.Cmd, error) {
+	err := utils.Unzip(*data, *dest)
 	if err != nil {
-		tea.Quit()
+		return nil, err
 	}
-	return progressCmd("init")
+
+	return progressCmd(2), nil
 }
 
 func main() {

@@ -47,14 +47,6 @@ func CreateProject(project *SpringProject) (data []byte, dest string, err error)
 		return nil, "", err
 	}
 
-	// Unzip the file
-	/*err = unzip(buf.Bytes(), project.ProjectName)
-	if err != nil {
-		fmt.Printf("Error unziping the file: %v\n", err)
-		return nil, "", err
-	}*/
-
-	fmt.Printf("Project '%s' succesfully created in folder: '%s'\n", project.ProjectName, project.ProjectName)
 	return buf.Bytes(), project.ProjectName, nil
 }
 

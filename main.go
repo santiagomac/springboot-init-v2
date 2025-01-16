@@ -49,12 +49,13 @@ func (m model) Init() tea.Cmd {
 	return textinput.Blink
 }
 
-var data *[]byte
-var projectName *string
-var cmdCreation tea.Cmd
+var (
+	data        *[]byte
+	projectName *string
+	cmdCreation tea.Cmd
+)
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -103,7 +104,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if int(msg) == 2 {
 			cmd := m.progress.IncrPercent(0.5)
+			m.creationStep++
 			return m, cmd
+		}
+		if int(msg) == 3 {
+			return m, tea.Quit
 		}
 
 	case progress.FrameMsg:
@@ -114,6 +119,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.step == 2 && m.creationStep == 2 {
 			unzip(data, projectName)
 			return m, progressCmd(2)
+		}
+		if m.creationStep == 3 {
+			return m, tea.Quit
 		}
 	}
 
@@ -150,6 +158,9 @@ func (m model) View() string {
 		s += "Creating project...\n\n"
 		s += fmt.Sprintf("%s\n", m.progress.View())
 		s += fmt.Sprintf("Progress: %.0f%%\n", m.progress.Percent()*100)
+		if m.creationStep == 3 {
+			s += fmt.Sprintf("\n\n Project %s created successfully\n\n", m.projectName)
+		}
 	}
 	s += "\n Press 'q' to exit"
 	return s

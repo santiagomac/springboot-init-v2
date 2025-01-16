@@ -56,6 +56,9 @@ var (
 )
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.step == 3 {
+		return m, tea.Quit
+	}
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -104,12 +107,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if int(msg) == 2 {
 			cmd := m.progress.IncrPercent(0.5)
+			m.step++
 			return m, cmd
 		}
-		if int(msg) == 3 {
-			return m, tea.Quit
-		}
-
 	case progress.FrameMsg:
 		progressModel, cmd := m.progress.Update(msg)
 		m.progress = progressModel.(progress.Model)
@@ -157,10 +157,10 @@ func (m model) View() string {
 		s += "Creating project...\n\n"
 		s += fmt.Sprintf("%s\n", m.progress.View())
 		s += fmt.Sprintf("\n\nProgess: %v\n", m.progress.Percent())
-		if m.creationStep == 3 {
-			s += fmt.Sprintf("\n\n Project %s created successfully\n\n", m.projectName)
-			return s
-		}
+		return s
+	case 3:
+		s += fmt.Sprintf("\n\n Project '%s' created successfully\n\n", m.projectName)
+		return s
 	}
 	s += "\n Press 'q' to exit"
 	return s

@@ -49,10 +49,11 @@ func (m model) Init() tea.Cmd {
 	return textinput.Blink
 }
 
+var data *[]byte
+var projectName *string
+var cmdCreation tea.Cmd
+
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var data *[]byte
-	var projectName *string
-	var cmdCreation tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
